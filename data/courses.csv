@@ -1,0 +1,10 @@
+semester,course_code,course_name,credits,syllabus,status
+1,MA101,Engineering Mathematics I,4,"Matrices; Calculus",Not Started
+1,PH101,Engineering Physics,4,"Waves; Optics",Not Started
+1,CS101,Programming in C,4,"Basics; Loops; Arrays",Not Started
+2,MA201,Engineering Mathematics II,4,"Differential Equations",Not Started
+2,CS201,Data Structures,4,"Stacks; Queues; Trees",Not Started
+2,EC201,Digital Electronics,4,"Logic Gates; Flip Flops",Not Started
+3,CS301,Data Structures and Algorithms,4,"Trees; Graphs; Sorting",In Progress
+3,CS302,Object Oriented Programming,4,"Classes; Objects; Inheritance",In Progress
+3,CS303,Database Management Systems,4,"SQL; Normalization",In Progress
