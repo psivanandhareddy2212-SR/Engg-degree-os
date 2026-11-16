@@ -213,7 +213,7 @@ pages = [
 ]
 page = st.sidebar.radio("Navigate", pages)
 st.sidebar.divider()
-st.sidebar.caption("Data is stored in editable CSV files in the data/ folder.")
+st.sidebar.caption("Your academic data is securely stored in Supabase.")
 
 if page == "Dashboard":
     st.header("Dashboard")
@@ -488,7 +488,7 @@ Rules:
         history = ""
         for msg in st.session_state.degree_ai_messages[-10:-1]:
             role = "Student" if msg["role"] == "user" else "Degree AI"
-            history += f"\n{role}: {msg['content']}"
+            history += f"{role}: {msg['content']}\n"
 
         prompt = f"""
 {system_instruction}
@@ -511,7 +511,7 @@ Answer based on the supplied academic data.
             with st.spinner("Degree AI is analysing your academic data..."):
                 try:
                     response = client.models.generate_content(
-                        model="gemini-3.8-flash",
+                        model="gemini-2.5-flash",
                         contents=prompt
                     )
 
