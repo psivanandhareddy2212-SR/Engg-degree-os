@@ -171,16 +171,20 @@ data = {
     for key in FILES
 }
 
-# Ensure a starter checklist exists so the page is usable immediately.
+# Create starter checklist only when no saved checklist exists.
 if data["plan"].empty and not (DATA_DIR / FILES["plan"]).exists():
-    data["plan"] = pd.DataFrame([
-        ["Semester Preparation", "Download current syllabus", str(date.today()), "Not Started", ""],
-        ["Assessments", "Prepare for the next internal assessment", str(date.today() + timedelta(days=7)), "Not Started", ""],
-        ["Projects", "Choose a mini-project problem statement", str(date.today() + timedelta(days=14)), "Not Started", ""],
-        ["Documents", "Organise marksheets and certificates", str(date.today() + timedelta(days=30)), "Not Started", ""],
-        ["Skills", "Complete one programming practice session", str(date.today() + timedelta(days=5)), "Not Started", ""],
-        ["Internship/Placement", "Update resume", str(date.today() + timedelta(days=45)), "Not Started", ""],
-    ], columns=DEFAULTS["plan"])
+    data["plan"] = pd.DataFrame(
+        [
+            ["Semester Preparation", "Download current syllabus", str(date.today()), "Not Started", ""],
+            ["Assessments", "Prepare for the next internal assessment", str(date.today() + timedelta(days=7)), "Not Started", ""],
+            ["Projects", "Choose a mini-project problem statement", str(date.today() + timedelta(days=14)), "Not Started", ""],
+            ["Documents", "Organise marksheets and certificates", str(date.today() + timedelta(days=30)), "Not Started", ""],
+            ["Skills", "Complete one programming practice session", str(date.today() + timedelta(days=5)), "Not Started", ""],
+            ["Internship/Placement", "Update resume", str(date.today() + timedelta(days=45)), "Not Started", ""],
+        ],
+        columns=DEFAULTS["plan"]
+    )
+    save_data("plan", data["plan"])
 
 sem = data["semesters"].copy()
 courses = data["courses"].copy()
@@ -630,7 +634,136 @@ elif page == "Internal Assessments":
                 use_container_width=True,
                 hide_index=True
             )
+elif page == "Status Tracker":
+    st.header("Status Tracker")
 
+    tracker = courses.copy()
+
+    if "status" not in tracker.columns:
+        tracker["status"] = "Not Started"
+
+    tracker["status"] = tracker["status"].fillna("Not Started").astype(str)
+
+    completed = tracker["status"].str.lower().isin(["completed", "complete", "done"]).sum()
+    progress = tracker["status"].str.lower().isin(["in progress", "ongoing"]).sum()
+    not_started = len(tracker) - completed - progress
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Completed", int(completed))
+    c2.metric("In Progress", int(progress))
+    c3.metric("Not Started", int(not_started))
+
+    if len(tracker):
+        percentage = completed / len(tracker) * 100
+        st.progress(percentage / 100)
+        st.write(f"Overall course completion: {percentage:.1f}%")
+
+        edited_tracker = st.data_editor(
+            tracker,
+            use_container_width=True,
+            hide_index=True,
+            key="status_tracker_editor"
+        )
+
+        if st.button("Save Status Tracker"):
+            save_data("courses", edited_tracker)
+            st.success("Status Tracker saved successfully.")
+            st.rerun()
+    else:
+        st.info("No course records available. Add courses in Data Admin.")
+
+
+elif page == "Scorecard":
+    st.header("Scorecard")
+
+    if not scores.empty:
+        total_score = pd.to_numeric(scores["score_num"], errors="coerce").sum()
+        total_max = pd.to_numeric(scores["max_num"], errors="coerce").sum()
+
+        percentage = (total_score / total_max * 100) if total_max > 0 else 0
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total Marks", f"{total_score:g}")
+        c2.metric("Maximum Marks", f"{total_max:g}")
+        c3.metric("Overall Percentage", f"{percentage:.2f}%")
+
+        st.progress(min(percentage / 100, 1.0))
+
+        st.subheader("Assessment-wise Scorecard")
+        st.dataframe(scores, use_container_width=True, hide_index=True)
+
+        if "semester" in scores.columns:
+            st.subheader("Semester-wise Performance")
+            semester_scores = scores.copy()
+            semester_scores["score_num"] = pd.to_numeric(
+                semester_scores["score_num"], errors="coerce"
+            )
+            semester_scores["max_num"] = pd.to_numeric(
+                semester_scores["max_num"], errors="coerce"
+            )
+            summary = semester_scores.groupby("semester", dropna=False).agg(
+                obtained=("score_num", "sum"),
+                maximum=("max_num", "sum")
+            )
+            summary["percentage"] = (
+                summary["obtained"] / summary["maximum"] * 100
+            ).fillna(0)
+            st.dataframe(summary, use_container_width=True)
+    else:
+        st.info("No score records available. Add assessment scores in Data Admin.")
+
+    st.caption("This percentage is based on recorded marks, not an official university CGPA.")
+
+
+elif page == "Plan & Checklist":
+    st.header("Plan & Checklist")
+
+    checklist = plan.copy()
+
+    if "item" not in checklist.columns:
+        checklist["item"] = ""
+
+    if "status" not in checklist.columns:
+        checklist["status"] = "Not Started"
+
+    if "category" not in checklist.columns:
+        checklist["category"] = "General"
+
+    if "target_date" not in checklist.columns:
+        checklist["target_date"] = ""
+
+    checklist["status"] = checklist["status"].fillna("Not Started").astype(str)
+
+    completed = checklist["status"].str.lower().isin(
+        ["completed", "complete", "done"]
+    ).sum()
+
+    pending = len(checklist) - completed
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Total Tasks", len(checklist))
+    c2.metric("Completed Tasks", int(completed))
+    c3.metric("Pending Tasks", int(pending))
+
+    if len(checklist):
+        percentage = completed / len(checklist) * 100
+        st.progress(percentage / 100)
+        st.write(f"Checklist completion: {percentage:.1f}%")
+
+    st.subheader("Your Academic Checklist")
+
+    edited_checklist = st.data_editor(
+        checklist,
+        use_container_width=True,
+        hide_index=True,
+        num_rows="dynamic",
+        key="plan_checklist_editor"
+    )
+
+    if st.button("Save Plan & Checklist"):
+        save_data("plan", edited_checklist)
+        st.success("Plan & Checklist saved successfully.")
+        st.rerun()
 elif page == "Ask Degree AI":
     st.header("🤖 Ask Degree AI")
     st.caption("Gemini-powered academic assistant connected to your Engineering Degree OS data.")
