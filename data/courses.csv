@@ -8,3 +8,8 @@ semester,course_code,course_name,credits,syllabus,status
 3,CS301,Data Structures and Algorithms,4,"Trees; Graphs; Sorting",In Progress
 3,CS302,Object Oriented Programming,4,"Classes; Objects; Inheritance",In Progress
 3,CS303,Database Management Systems,4,"SQL; Normalization",In Progress
+3,CS304,Computer Networks,3,"Network Models; Routing; Protocols",Not Started
+3,CS305,Discrete Mathematics,3,"Logic; Sets; Graph Theory",Not Started
+3,CS306,Software Engineering,3,"SDLC; Testing; Design",Not Started
+3,CSL301,Data Structures Lab,1,"Programming; Sorting; Searching",Not Started
+3,CSL302,DBMS Lab,1,"SQL; Queries; Database Design",Not Started
