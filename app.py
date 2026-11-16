@@ -256,122 +256,376 @@ if page == "Dashboard":
     else:
         st.warning("Add semester rows to data/semesters.csv to populate the dashboard.")
 
-elif page == "Semesters 1-8":
-    st.header("Semesters 1-8")
-    if sem.empty:
-        st.warning("No semester data found. Add Semester 1–8 rows to semesters.csv.")
-    else:
-        cols = st.columns(4)
-        for i, (_, row) in enumerate(sem.sort_values("semester").iterrows()):
-            with cols[i % 4]:
+elif page == "Semesters 1–8":
+    st.header("Semesters 1–8")
+    cols = st.columns(4)
+
+    for i in range(1, 9):
+        semester_data = sem[sem["semester"] == i]
+
+        with cols[(i - 1) % 4]:
+            if not semester_data.empty:
+                row = semester_data.iloc[0]
+                status = str(row["status"])
                 total = float(row["total_credits"])
                 done = float(row["completed_credits"])
-                pct = done / total if total else 0
-                st.metric(f"Semester {int(row['semester'])}", str(row["status"]))
-                st.caption(f"{done:g} / {total:g} credits")
-                st.progress(min(max(pct, 0.0), 1.0))
-                count = int((courses["semester"] == int(row["semester"])).sum()) if not courses.empty else 0
-                st.caption(f"{count} courses")
+                count = int((courses["semester"] == i).sum())
+            else:
+                status = "No data entered"
+                total = 0
+                done = 0
+                count = 0
+
+            st.metric(f"Semester {i}", status)
+            st.caption(f"{done:g} / {total:g} credits")
+            st.caption(f"{count} courses")
+            st.progress(min(max(done / total, 0), 1) if total else 0.0)
 
 elif page == "Courses & Syllabus":
     st.header("Courses & Syllabus")
+
     if courses.empty:
-        st.warning("No courses found in data/courses.csv.")
+        st.warning("No course records found. Add courses in Data Admin.")
     else:
-        selected = st.selectbox("Select semester", sorted(courses["semester"].unique().tolist()))
-        view = courses[courses["semester"] == selected].drop(columns=[], errors="ignore")
-        st.dataframe(view, use_container_width=True, hide_index=True)
-        st.subheader("Course topics")
-        for _, row in view.iterrows():
-            with st.expander(f"{row['course_code']} – {row['course_name']}"):
-                st.write(row["syllabus"])
+        selected = st.selectbox("Select semester", list(range(1, 9)))
+        view = courses[courses["semester"] == selected]
+
+        st.subheader(f"Semester {selected} Courses")
+
+        if view.empty:
+            st.info("No courses have been added for this semester yet.")
+        else:
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Total courses", len(view))
+            c2.metric("Total credits", float(view["credits"].sum()))
+            c3.metric(
+                "Completed courses",
+                int(view["status"].astype(str).str.lower().eq("completed").sum())
+            )
+
+            st.dataframe(view, use_container_width=True, hide_index=True)
+
+            st.subheader("Course syllabus and topics")
+            for _, row in view.iterrows():
+                with st.expander(f"{row['course_code']} – {row['course_name']}"):
+                    st.write("**Credits:**", row["credits"])
+                    st.write("**Status:**", row["status"])
+                    st.write("**Syllabus / Topics:**")
+                    st.write(row["syllabus"])
 
 elif page == "University Syllabus":
     st.header("University Syllabus")
-    st.write("Programme-level syllabus overview")
-    st.info("This prototype does not contain a verified university regulation or complete official syllabus.")
-    st.write("**Programme:** Engineering degree")
-    st.write("**Duration:** 8 semesters")
-    st.write("**Expected credits:** Enter the verified total from your university curriculum.")
-    st.text_input("Syllabus source / reference", placeholder="Paste official university syllabus URL or document reference")
-    st.caption("Do not treat sample course topics in courses.csv as the official university syllabus.")
+    st.subheader("Engineering Degree Programme")
+
+    st.write("Programme duration: 4 years")
+    st.write("Total semesters: 8")
+
+    total_credits = float(sem["total_credits"].sum()) if not sem.empty else 0
+    st.metric("Expected credits entered in Degree OS", total_credits)
+
+    st.info(
+        "Enter the verified university curriculum details and refer to "
+        "your official university syllabus for regulations."
+    )
+
+    st.subheader("Syllabus Reference")
+    st.text_input(
+        "University syllabus source / reference",
+        key="university_syllabus_reference",
+        placeholder="Paste official university syllabus URL or document reference"
+    )
+
+    st.caption(
+        "Official regulations, credit requirements and syllabus content "
+        "must be verified against your university's published documents."
+    )
 
 elif page == "Academic / Leave Calendar":
     st.header("Academic / Leave Calendar")
+
     if calendar.empty:
-        st.warning("No calendar records found in data/academic_calendar.csv.")
+        st.warning("No calendar records found. Add records in Data Admin.")
     else:
-        years = ["All"] + sorted(calendar["academic_year"].dropna().astype(str).unique().tolist())
-        year = st.selectbox("Academic year", years)
-        sems = ["All"] + sorted(calendar["semester"].unique().tolist())
-        semester = st.selectbox("Semester", sems)
+        c1, c2 = st.columns(2)
+
+        years = ["All"] + sorted(
+            calendar["academic_year"].dropna().astype(str).unique().tolist()
+        )
+
+        semesters = ["All"] + list(range(1, 9))
+
+        with c1:
+            year = st.selectbox("Academic year", years)
+
+        with c2:
+            semester = st.selectbox("Semester", semesters)
+
         view = calendar.copy()
+
         if year != "All":
             view = view[view["academic_year"].astype(str) == year]
+
         if semester != "All":
             view = view[view["semester"] == semester]
-        st.dataframe(view.drop(columns=["date_parsed"], errors="ignore").sort_values("date"), use_container_width=True, hide_index=True)
+
+        event_types = ["All"] + sorted(
+            view["event_type"].dropna().astype(str).unique().tolist()
+        )
+
+        event_filter = st.selectbox("Event type", event_types)
+
+        if event_filter != "All":
+            view = view[
+                view["event_type"].astype(str) == event_filter
+            ]
+
+        view = view.sort_values("date_parsed", na_position="last")
+
+        st.metric("Total calendar events", len(view))
+
+        if view.empty:
+            st.info("No events found for the selected filters.")
+        else:
+            st.dataframe(
+                view.drop(columns=["date_parsed"], errors="ignore"),
+                use_container_width=True,
+                hide_index=True
+            )
 
 elif page == "Internal Assessments":
     st.header("Internal Assessments")
+
     if assessments.empty:
-        st.warning("No assessment records found in data/assessments.csv.")
+        st.warning("No assessment records found. Add records in Data Admin.")
     else:
-        semesters = ["All"] + sorted(assessments["semester"].unique().tolist())
-        selected = st.selectbox("Filter by semester", semesters)
-        view = assessments if selected == "All" else assessments[assessments["semester"] == selected]
-        st.dataframe(view.drop(columns=["date_parsed"], errors="ignore").sort_values("date"), use_container_width=True, hide_index=True)
+        c1, c2 = st.columns(2)
 
-elif page == "Status Tracker":
-    st.header("Status Tracker")
+        with c1:
+            selected = st.selectbox(
+                "Filter by semester",
+                ["All"] + list(range(1, 9))
+            )
+
+        with c2:
+            types = ["All"] + sorted(
+                assessments["assessment_type"].dropna().astype(str).unique().tolist()
+            )
+            assessment_type = st.selectbox("Assessment type", types)
+
+        view = assessments.copy()
+
+        if selected != "All":
+            view = view[view["semester"] == selected]
+
+        if assessment_type != "All":
+            view = view[
+                view["assessment_type"].astype(str) == assessment_type
+            ]
+
+        view = view.sort_values("date_parsed", na_position="last")
+
+        st.metric("Total assessments", len(view))
+
+        if view.empty:
+            st.info("No assessments match the selected filters.")
+        else:
+            upcoming = view[
+                view["date_parsed"].notna()
+                & (view["date_parsed"].dt.date >= date.today())
+            ]
+
+            st.metric("Upcoming assessments", len(upcoming))
+
+            st.dataframe(
+                view.drop(columns=["date_parsed"], errors="ignore"),
+                use_container_width=True,
+                hide_index=True
+            )
+elif page == "Semesters 1–8":
+    st.header("Semesters 1–8")
+    cols = st.columns(4)
+
+    for i in range(1, 9):
+        semester_data = sem[sem["semester"] == i]
+
+        with cols[(i - 1) % 4]:
+            if not semester_data.empty:
+                row = semester_data.iloc[0]
+                status = str(row["status"])
+                total = float(row["total_credits"])
+                done = float(row["completed_credits"])
+                count = int((courses["semester"] == i).sum())
+            else:
+                status = "No data entered"
+                total = 0
+                done = 0
+                count = 0
+
+            st.metric(f"Semester {i}", status)
+            st.caption(f"{done:g} / {total:g} credits")
+            st.caption(f"{count} courses")
+            st.progress(min(max(done / total, 0), 1) if total else 0.0)
+
+elif page == "Courses & Syllabus":
+    st.header("Courses & Syllabus")
+
     if courses.empty:
-        st.warning("No courses found in data/courses.csv.")
+        st.warning("No course records found. Add courses in Data Admin.")
     else:
-        semester = st.selectbox("Semester", sorted(courses["semester"].unique().tolist()))
-        view = courses[courses["semester"] == semester].copy()
-        counts = view["status"].astype(str).value_counts()
-        a, b, c = st.columns(3)
-        a.metric("Not Started", int(counts.get("Not Started", 0)))
-        b.metric("In Progress", int(counts.get("In Progress", 0)))
-        c.metric("Completed", int(counts.get("Completed", 0)))
-        done = int(view["status"].astype(str).str.lower().eq("completed").sum())
-        st.progress(done / len(view) if len(view) else 0)
-        st.dataframe(view, use_container_width=True, hide_index=True)
+        selected = st.selectbox("Select semester", list(range(1, 9)))
+        view = courses[courses["semester"] == selected]
 
-elif page == "Scorecard":
-    st.header("Scorecard")
-    if scores.empty:
-        st.warning("No marks found in data/scores.csv.")
+        st.subheader(f"Semester {selected} Courses")
+
+        if view.empty:
+            st.info("No courses have been added for this semester yet.")
+        else:
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Total courses", len(view))
+            c2.metric("Total credits", float(view["credits"].sum()))
+            c3.metric(
+                "Completed courses",
+                int(view["status"].astype(str).str.lower().eq("completed").sum())
+            )
+
+            st.dataframe(view, use_container_width=True, hide_index=True)
+
+            st.subheader("Course syllabus and topics")
+            for _, row in view.iterrows():
+                with st.expander(f"{row['course_code']} – {row['course_name']}"):
+                    st.write("**Credits:**", row["credits"])
+                    st.write("**Status:**", row["status"])
+                    st.write("**Syllabus / Topics:**")
+                    st.write(row["syllabus"])
+
+elif page == "University Syllabus":
+    st.header("University Syllabus")
+    st.subheader("Engineering Degree Programme")
+
+    st.write("Programme duration: 4 years")
+    st.write("Total semesters: 8")
+
+    total_credits = float(sem["total_credits"].sum()) if not sem.empty else 0
+    st.metric("Expected credits entered in Degree OS", total_credits)
+
+    st.info(
+        "Enter the verified university curriculum details and refer to "
+        "your official university syllabus for regulations."
+    )
+
+    st.subheader("Syllabus Reference")
+    st.text_input(
+        "University syllabus source / reference",
+        key="university_syllabus_reference",
+        placeholder="Paste official university syllabus URL or document reference"
+    )
+
+    st.caption(
+        "Official regulations, credit requirements and syllabus content "
+        "must be verified against your university's published documents."
+    )
+
+elif page == "Academic / Leave Calendar":
+    st.header("Academic / Leave Calendar")
+
+    if calendar.empty:
+        st.warning("No calendar records found. Add records in Data Admin.")
     else:
-        total = scores["score_num"].sum()
-        maximum = scores["max_num"].sum()
-        pct = total / maximum * 100 if maximum else 0
-        st.metric("percentage", f"{pct:.2f}%")
-        st.caption("This is a simple total-score percentage, not an official university CGPA.")
-        st.dataframe(scores.drop(columns=["score_num", "max_num"], errors="ignore"), use_container_width=True, hide_index=True)
-        per_sem = scores.groupby("semester")[["score_num", "max_num"]].sum()
-        per_sem["percentage"] = (per_sem["score_num"] / per_sem["max_num"] * 100).round(2)
-        st.subheader("Semester-wise percentage")
-        st.dataframe(per_sem, use_container_width=True)
+        c1, c2 = st.columns(2)
 
-elif page == "Plan & Checklist":
-    st.header("Plan & Checklist")
-    st.caption("Edit the table, then click Save checklist. Health is calculated from target dates.")
-    edited = st.data_editor(plan, num_rows="dynamic", use_container_width=True, key="plan_editor")
-    if st.button("Save checklist"):
-        save_data("plan", edited)
-        st.rerun()
-    if not edited.empty:
-        dates = pd.to_datetime(edited["target_date"], errors="coerce").dt.date
-        statuses = edited["status"].astype(str).str.lower()
-        due_soon = sum(1 for d, s in zip(dates, statuses) if pd.notna(d) and date.today() <= d <= date.today() + timedelta(days=7) and s not in ["done", "completed"])
-        overdue = sum(1 for d, s in zip(dates, statuses) if pd.notna(d) and d < date.today() and s not in ["done", "completed"])
-        done = int(statuses.isin(["done", "completed"]).sum())
-        x, y, z, w = st.columns(4)
-        x.metric("Total items", len(edited))
-        y.metric("Done", done)
-        z.metric("Due soon", due_soon)
-        w.metric("Overdue", overdue)
+        years = ["All"] + sorted(
+            calendar["academic_year"].dropna().astype(str).unique().tolist()
+        )
+
+        semesters = ["All"] + list(range(1, 9))
+
+        with c1:
+            year = st.selectbox("Academic year", years)
+
+        with c2:
+            semester = st.selectbox("Semester", semesters)
+
+        view = calendar.copy()
+
+        if year != "All":
+            view = view[view["academic_year"].astype(str) == year]
+
+        if semester != "All":
+            view = view[view["semester"] == semester]
+
+        event_types = ["All"] + sorted(
+            view["event_type"].dropna().astype(str).unique().tolist()
+        )
+
+        event_filter = st.selectbox("Event type", event_types)
+
+        if event_filter != "All":
+            view = view[
+                view["event_type"].astype(str) == event_filter
+            ]
+
+        view = view.sort_values("date_parsed", na_position="last")
+
+        st.metric("Total calendar events", len(view))
+
+        if view.empty:
+            st.info("No events found for the selected filters.")
+        else:
+            st.dataframe(
+                view.drop(columns=["date_parsed"], errors="ignore"),
+                use_container_width=True,
+                hide_index=True
+            )
+
+elif page == "Internal Assessments":
+    st.header("Internal Assessments")
+
+    if assessments.empty:
+        st.warning("No assessment records found. Add records in Data Admin.")
+    else:
+        c1, c2 = st.columns(2)
+
+        with c1:
+            selected = st.selectbox(
+                "Filter by semester",
+                ["All"] + list(range(1, 9))
+            )
+
+        with c2:
+            types = ["All"] + sorted(
+                assessments["assessment_type"].dropna().astype(str).unique().tolist()
+            )
+            assessment_type = st.selectbox("Assessment type", types)
+
+        view = assessments.copy()
+
+        if selected != "All":
+            view = view[view["semester"] == selected]
+
+        if assessment_type != "All":
+            view = view[
+                view["assessment_type"].astype(str) == assessment_type
+            ]
+
+        view = view.sort_values("date_parsed", na_position="last")
+
+        st.metric("Total assessments", len(view))
+
+        if view.empty:
+            st.info("No assessments match the selected filters.")
+        else:
+            upcoming = view[
+                view["date_parsed"].notna()
+                & (view["date_parsed"].dt.date >= date.today())
+            ]
+
+            st.metric("Upcoming assessments", len(upcoming))
+
+            st.dataframe(
+                view.drop(columns=["date_parsed"], errors="ignore"),
+                use_container_width=True,
+                hide_index=True
+            )
 
 elif page == "Ask Degree AI":
     st.header("🤖 Ask Degree AI")
