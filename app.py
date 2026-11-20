@@ -176,10 +176,10 @@ if st.sidebar.button("Sign out"):
     st.session_state.pop("_supabase", None)
     st.rerun()
 
-st.title("🎓 My SR EduSphere")
+st.title("🎓 My Engineering Degree OS")
 st.caption("Your Semester 1–8 academic command centre")
 
-with st.spinner("Loading your SR EduSphere..."):
+with st.spinner("Loading your Engineering Degree OS..."):
     data = {
         key: load_data(key, str(session.user.id))
         for key in FILES
@@ -968,41 +968,83 @@ elif page == "Ask Degree AI":
                 f"- {item}" for item in pending[item_col].astype(str)
             )
 
-        # Semester progress
-        if "semester progress" in q or "degree progress" in q:
-            if sem.empty:
+        # Semester syllabus
+        if "syllabus" in q:
+            import re
+
+            match = re.search(r"semester\s*(\d+)", q)
+
+            if not match:
+                return (
+                    "Please specify a semester number.\n\n"
+                    "Example: **Show my Semester 3 syllabus.**"
+                )
+
+            semester_number = int(match.group(1))
+
+            if courses.empty or "semester" not in courses.columns:
                 return SAFE_REPLY
 
-            semester_col = get_column(sem, ["semester"])
-            completed_col = get_column(
-                sem, ["completed_credits"]
+            selected = courses[
+                pd.to_numeric(
+                    courses["semester"], errors="coerce"
+                ) == semester_number
+            ]
+
+            if selected.empty:
+                return (
+                    f"No course records found for Semester {semester_number}."
+                )
+
+            code_col = get_column(
+                selected, ["course_code", "code"]
             )
-            total_col = get_column(sem, ["total_credits"])
-
-            if not completed_col or not total_col:
-                return SAFE_REPLY
-
-            completed = pd.to_numeric(
-                sem[completed_col], errors="coerce"
-            ).fillna(0).sum()
-
-            total = pd.to_numeric(
-                sem[total_col], errors="coerce"
-            ).fillna(0).sum()
-
-            percentage = completed / total * 100 if total else 0
+            name_col = get_column(
+                selected, ["course_name", "name", "title"]
+            )
+            status_col = get_column(selected, ["status"])
+            syllabus_col = get_column(
+                selected, ["syllabus", "topics", "syllabus_topics"]
+            )
 
             result = (
-                f"Completed credits: {completed:g}\n"
-                f"Total credits: {total:g}\n"
-                f"Degree credit progress: {percentage:.1f}%"
+                f"## 📚 Semester {semester_number} Syllabus\n\n"
+                f"**Total courses:** {len(selected)}\n\n"
             )
 
-            if semester_col:
-                result += "\n\nSemester-wise records:\n"
-                result += sem[
-                    [semester_col, completed_col, total_col]
-                ].to_string(index=False)
+            for index, (_, row) in enumerate(selected.iterrows(), start=1):
+                course_name = (
+                    str(row[name_col])
+                    if name_col and pd.notna(row[name_col])
+                    else "Course details unavailable"
+                )
+
+                course_code = (
+                    str(row[code_col])
+                    if code_col and pd.notna(row[code_col])
+                    else ""
+                )
+
+                status = (
+                    str(row[status_col])
+                    if status_col and pd.notna(row[status_col])
+                    else "Not specified"
+                )
+
+                result += f"### {index}. {course_name}\n\n"
+
+                if course_code:
+                    result += f"**Course code:** {course_code}  \n"
+
+                result += f"**Status:** {status}\n\n"
+
+                if syllabus_col and pd.notna(row[syllabus_col]):
+                    result += (
+                        "**Syllabus / Topics:**\n\n"
+                        f"{row[syllabus_col]}\n\n"
+                    )
+
+                result += "---\n\n"
 
             return result
 
@@ -1153,14 +1195,41 @@ elif page == "Ask Degree AI":
                             context_parts.append(
                                 f"{name.upper()}: No records."
                             )
+                        context_parts = []
+                    for name, df in relevant_data.items():
+                        if not df.empty:
+                            compact_df = df.drop(
+                                columns=[
+                                    "date_parsed", "score_num", "max_num"
+                                ],
+                                errors="ignore"
+                            ).head(20)
+
+                            context_parts.append(
+                                f"{name.upper()}:\n"
+                                + compact_df.to_csv(index=False)
+                            )
+                        else:
+                            context_parts.append(
+                                f"{name.upper()}: No records."
+                            )
 
                     prompt = f"""
 You are Degree AI for an engineering student.
 
 Answer using ONLY the supplied academic records.
 Never invent dates, marks, credits, syllabus or university rules.
-For unsupported information say:
-"{SAFE_REPLY}"
+
+If information is unavailable, say:
+{SAFE_REPLY}
+
+FORMATTING RULES:
+- Use clear headings and short paragraphs.
+- Use Markdown tables for academic records.
+- Use bullet points for courses and tasks.
+- Highlight important dates, marks and credits in bold.
+- Never display raw CSV, JSON or database dumps.
+- Explain answers in simple language.
 
 Today's date: {date.today().isoformat()}
 
@@ -1169,7 +1238,7 @@ ACADEMIC RECORDS:
 
 QUESTION:
 {user_question}
-"""
+                    """
 
                     with st.spinner("Degree AI is preparing your answer..."):
                         response = client.models.generate_content(
@@ -1178,7 +1247,6 @@ QUESTION:
                         )
 
                     answer = response.text or SAFE_REPLY
-
             except Exception as exc:
                 logger.exception("Degree AI request failed")
                 answer = (
@@ -1234,4 +1302,4 @@ elif page == "Data Admin":
                 st.rerun()
 
 st.divider()
-st.caption("SR EduSphere prototype • Verify official dates, syllabus, credits and grading rules with your institution.")
+st.caption("Engineering Degree OS prototype • Verify official dates, syllabus, credits and grading rules with your institution.")
