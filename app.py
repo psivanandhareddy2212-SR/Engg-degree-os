@@ -105,7 +105,11 @@ def save_data(key, df):
 def as_date(series):
     return pd.to_datetime(series, errors="coerce").dt.date
 
-st.set_page_config(page_title="My Engineering Degree OS", page_icon="🎓", layout="wide")
+st.set_page_config(
+    page_title="SR EduSphere",
+    page_icon="🎓",
+    layout="wide"
+)
 logger = logging.getLogger(__name__)
 
 # Read Supabase configuration
@@ -131,7 +135,8 @@ except Exception:
 
 # Require sign-in
 if session is None:
-    st.header("Engineering Degree OS")
+    st.header("SR EduSphere")
+    st.caption("Your Degree. Your Progress. Your Future.")
     st.subheader("Sign in")
 
     with st.form("sign_in", clear_on_submit=True):
@@ -171,10 +176,10 @@ if st.sidebar.button("Sign out"):
     st.session_state.pop("_supabase", None)
     st.rerun()
 
-st.title("🎓 My Engineering Degree OS")
+st.title("🎓 My SR EduSphere")
 st.caption("Your Semester 1–8 academic command centre")
 
-with st.spinner("Loading your Engineering Degree OS..."):
+with st.spinner("Loading your SR EduSphere..."):
     data = {
         key: load_data(key, str(session.user.id))
         for key in FILES
@@ -1229,4 +1234,4 @@ elif page == "Data Admin":
                 st.rerun()
 
 st.divider()
-st.caption("Engineering Degree OS prototype • Verify official dates, syllabus, credits and grading rules with your institution.")
+st.caption("SR EduSphere prototype • Verify official dates, syllabus, credits and grading rules with your institution.")
