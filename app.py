@@ -32,8 +32,8 @@ DEFAULTS = {
 @st.cache_data(ttl=300, show_spinner=False)
 def load_data(key, user_id):
     path = DATA_DIR / FILES[key]
+
     try:
-        # First check Supabase
         response = (
             db.table("degree_os_data")
             .select("data")
@@ -49,13 +49,24 @@ def load_data(key, user_id):
             records = rows[0]["data"]
             df = pd.DataFrame(records)
         else:
-            # One-time migration from existing CSV
             if path.exists():
                 df = pd.read_csv(path)
             else:
                 df = pd.DataFrame(columns=DEFAULTS[key])
 
-            save_data(key, df)
+            # Save initial or migrated data.
+            # Do not call save_data() from this cached function.
+            records = json.loads(
+                df.to_json(orient="records", date_format="iso")
+            )
+            db.table("degree_os_data").upsert(
+                {
+                    "user_id": user_id,
+                    "dataset": key,
+                    "data": records
+                },
+                on_conflict="user_id,dataset"
+            ).execute()
 
         for col in DEFAULTS[key]:
             if col not in df.columns:
@@ -68,10 +79,7 @@ def load_data(key, user_id):
 
     except Exception:
         logger.exception(f"Could not load {key} from Supabase")
-        st.error(f"Could not load {FILES[key]} from Supabase.")
-        st.stop()
-
-
+        raise
 def save_data(key, df):
     try:
         records = json.loads(
@@ -166,10 +174,11 @@ if st.sidebar.button("Sign out"):
 st.title("🎓 My Engineering Degree OS")
 st.caption("Your Semester 1–8 academic command centre")
 
-data = {
-    key: load_data(key, str(session.user.id))
-    for key in FILES
-}
+with st.spinner("Loading your Engineering Degree OS..."):
+    data = {
+        key: load_data(key, str(session.user.id))
+        for key in FILES
+    }
 
 # Create starter checklist only when no saved checklist exists.
 if data["plan"].empty and not (DATA_DIR / FILES["plan"]).exists():
